@@ -21,6 +21,7 @@ type taskRunner struct {
 	netTimeout int //second
 	closed     bool
 	wgClose    *sync.WaitGroup
+	latest     time.Time //latest request time stamp
 }
 
 func (tr *taskRunner) readloop() {
@@ -59,6 +60,7 @@ func (tr *taskRunner) handleTask(r *PipelineRequest, flush bool) error {
 	}
 
 	tr.tasks.PushBack(r)
+	tr.latest = time.Now()
 
 	return errors.Trace(tr.dowrite(r, flush))
 }
@@ -109,10 +111,16 @@ func (tr *taskRunner) getOutgoingResponse() {
 			return
 		}
 
-		resp := <-tr.out
-		err := tr.handleResponse(resp)
-		if err != nil {
-			tr.cleanupOutgoingTasks(err)
+		select {
+		case resp := <-tr.out:
+			err := tr.handleResponse(resp)
+			if err != nil {
+				tr.cleanupOutgoingTasks(err)
+				return
+			}
+		case <-time.After(2 * time.Second):
+			tr.cleanupOutgoingTasks(errors.New("try read response timeout"))
+			return
 		}
 	}
 }
@@ -160,6 +168,7 @@ func (tr *taskRunner) handleResponse(e interface{}) error {
 
 func (tr *taskRunner) writeloop() {
 	var err error
+	tick := time.Tick(2 * time.Second)
 	for {
 		if tr.closed && tr.tasks.Len() == 0 {
 			log.Warning("exit taskrunner", tr.redisAddr)
@@ -180,6 +189,10 @@ func (tr *taskRunner) writeloop() {
 			tr.processTask(t)
 		case resp := <-tr.out:
 			err = tr.handleResponse(resp)
+		case <-tick:
+			if tr.tasks.Len() > 0 && int(time.Since(tr.latest).Seconds()) > tr.netTimeout {
+				tr.c.Close()
+			}
 		}
 	}
 }
