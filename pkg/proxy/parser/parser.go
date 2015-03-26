@@ -357,3 +357,22 @@ func (r *Resp) Bytes() ([]byte, error) {
 
 	return buf, nil
 }
+
+func (r *Resp) WriteTo(w io.Writer) error {
+	switch r.Type {
+	case NoKey:
+		w.Write(raw2Bulk(r))
+		w.Write(NEW_LINE)
+	case SimpleString, ErrorResp, IntegerResp, BulkResp:
+		w.Write(r.Raw)
+	case MultiResp:
+		w.Write(r.Raw)
+		if len(r.Multi) > 0 {
+			for _, resp := range r.Multi {
+				resp.WriteTo(w)
+			}
+		}
+	}
+
+	return nil
+}

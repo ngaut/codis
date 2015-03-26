@@ -126,29 +126,9 @@ func write2Client(redisReader *bufio.Reader, clientWriter io.Writer) (redisErr e
 		return errors.Trace(err), errors.Trace(err)
 	}
 
-	b, err := resp.Bytes()
-	if err != nil {
-		return errors.Trace(err), errors.Trace(err)
-	}
+	err = resp.WriteTo(clientWriter)
 
-	_, err = clientWriter.Write(b)
 	return nil, errors.Trace(err)
-}
-
-func write2Redis(resp *parser.Resp, redisWriter io.Writer) error {
-	// get resp in bytes
-	b, err := resp.Bytes()
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	return writeBytes2Redis(b, redisWriter)
-}
-
-func writeBytes2Redis(b []byte, redisWriter io.Writer) error {
-	// write to redis
-	_, err := redisWriter.Write(b)
-	return errors.Trace(err)
 }
 
 type BufioDeadlineReadWriter interface {
@@ -162,7 +142,7 @@ func forward(c DeadlineReadWriter, redisConn BufioDeadlineReadWriter, resp *pars
 		return errors.Trace(err), errors.Trace(err)
 	}
 
-	if err := write2Redis(resp, redisConn); err != nil {
+	if err := resp.WriteTo(redisConn); err != nil {
 		return errors.Trace(err), errors.Trace(err)
 	}
 
