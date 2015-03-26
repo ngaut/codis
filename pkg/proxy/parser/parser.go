@@ -310,52 +310,10 @@ func thridAsKey(r *Resp) ([][]byte, error) {
 	return keys, nil
 }
 
-func (r *Resp) getBulkBuf() []byte {
-	return r.Raw
-}
-
-func (r *Resp) getSimpleStringBuf() []byte {
-	return r.Raw
-}
-
-func (r *Resp) getErrorBuf() []byte {
-	return r.Raw
-}
-
-func (r *Resp) getIntegerBuf() []byte {
-	return r.Raw
-}
-
 func (r *Resp) Bytes() ([]byte, error) {
-	var buf []byte
-	switch r.Type {
-	case NoKey:
-		buf = append(buf, raw2Bulk(r)...)
-		buf = append(buf, NEW_LINE...)
-	case SimpleString:
-		buf = r.getSimpleStringBuf()
-	case ErrorResp:
-		buf = r.getErrorBuf()
-	case IntegerResp:
-		buf = r.getIntegerBuf()
-	case BulkResp:
-		buf = r.getBulkBuf()
-	case MultiResp:
-		buf = make([]byte, 0, 256)
-		buf = append(buf, r.Raw...)
-
-		if len(r.Multi) > 0 {
-			for _, resp := range r.Multi {
-				slice, err := resp.Bytes()
-				if err != nil {
-					return nil, errors.Trace(err)
-				}
-				buf = append(buf, slice...)
-			}
-		}
-	}
-
-	return buf, nil
+	b := &bytes.Buffer{}
+	err := r.WriteTo(b)
+	return b.Bytes(), err
 }
 
 func (r *Resp) WriteTo(w io.Writer) error {
